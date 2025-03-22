@@ -3,9 +3,11 @@ I am
 |:--:|:--:|:---------------:|
 | 박선규   |<img src="https://github.com/p4rksk/miniproject-jobala-v2-ssr/assets/153582360/cf8fd9c6-50d9-40b5-9914-09527344bf92" width="100">  |태이블설계, 프로젝트 초기 세팅 <br/>초기 더미 작업, 깃플로우 블로깅<br/><br/>관리자:책 목록보기, 상세보기, 수정, 삭제, <br/><br/>사용자: 회원가입,<br/> 메인(책히스토리,(일간,주간,누적 <br/>베스트셀러)), <br/>내서재(책목록, 위시리스트, 리뷰 관리), <br/> 랭크별 검색(카데고리별 베스트셀러)<br/>API문서<br/><br/>시연영상 촬영, PPT준비, 발표|
 ---
-![image](https://github.com/user-attachments/assets/6bf0355a-50a9-4c3b-832e-d88a32e9d23d)
+![image](https://github.com/user-attachments/assets/8e72773c-b513-4fea-9636-349399d76104)
 
-![image](https://github.com/user-attachments/assets/de3a80aa-e56b-44fc-9735-6b7e93277082)
+
+![image](https://github.com/user-attachments/assets/fecfab02-f63f-4000-af60-e5edabe1cbd0)
+
 
 
 # 🚀 "SHELF" - E-book 플랫폼
