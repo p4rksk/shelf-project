@@ -6,8 +6,12 @@ import com.project.shelf._core.util.ApiUtil;
 import com.project.shelf._core.util.AppJwtUtil;
 import com.project.shelf._core.util.NaverToken;
 import com.project.shelf.book.BookResponseRecord.RankResponseDTO;
+import com.project.shelf.book.projection.BestSellerProjection;
+import com.project.shelf.book.projection.DayBestSellerProjection;
+import com.project.shelf.book.projection.WeekBestSellerProjection;
 import com.project.shelf.payment.Payment;
 import com.project.shelf.payment.PaymentRepository;
+import com.project.shelf.user.UserResponse.MainDTO.BestSellerDTO;
 import com.project.shelf.user.UserRequestRecord.LoginReqDTO;
 import com.project.shelf.user.UserResponseRecord.*;
 import com.project.shelf._core.erros.exception.Exception401;
@@ -88,57 +92,76 @@ public class UserService {
 
     //메인페이지
     public MainDTO main(SessionUser sessionUser) {
-        // 1. 베스트 셀러 정보 DTO 매핑
-        List<MainDTO.BestSellerDTO> bestSeller = IntStream.range(0, 10)
-                .mapToObj(i -> {
-                    Book book = bookRepository.findBooksByHistory().get(i);
-                    return MainDTO.BestSellerDTO.builder()
-                            .id(book.getId())
-                            .bookImagePath(book.getPath())
-                            .bookTitle(book.getTitle())
-                            .author(book.getAuthor().getName())
-                            .rankNum(i + 1) // 순위 추가
-                            .build();
-                })
-                .collect(Collectors.toList());
+        // 1. 베스트 셀러 정보 DTO 매핑 (순위구하기)
+        List<BestSellerProjection> rawList = bookRepository.findBestSellers();
+
+        List<MainDTO.BestSellerDTO> bestSeller = 
+        IntStream.range(0, rawList.size())
+        .mapToObj(i -> {
+                BestSellerProjection projection  = rawList.get(i);
+                return new MainDTO.BestSellerDTO(
+                projection.getId(),
+                projection.getBookImagePath(),
+                projection.getBookTitle(),
+                projection.getAuthor(),
+                projection.getReadCount(),  
+                i + 1 
+            );
+        })
+        .collect(Collectors.toList());
+    
+    
 
         //2. 이어보기 정보 DTO 매핑
-        List<MainDTO.BookHistoryDTO> bookHistories = bookHistoryRepository.findBookHistoryByUserId(sessionUser.getId()).stream().map(
-                bookHistory -> MainDTO.BookHistoryDTO.builder()
-                        .userId(sessionUser.getId())
-                        .bookId(bookHistory.getBook().getId())
-                        .bookImagePath(bookHistory.getBook().getPath())
-                        .bookTitle(bookHistory.getBook().getTitle())
-                        .pageCount(bookHistory.getBook().getPageCount())
-                        .lastReadPage(bookHistory.getLastReadPage())
-                        .build()).collect(Collectors.toList());
+        List<MainDTO.BookHistoryDTO> bookHistories =
+        bookHistoryRepository.findContinueReadingBooks(sessionUser.getId())
+        .stream()
+        .map(p -> new MainDTO.BookHistoryDTO(
+                p.getUserId(),
+                p.getBookId(),
+                p.getBookTitle(),
+                p.getPageCount(),
+                p.getLastReadPage(),
+                p.getBookImagePath()
+        ))
+        .collect(Collectors.toList());
+
 
 
         LocalDate today = LocalDate.now();
 
         // 3. 주간 베스트 셀러 DTO 매핑
-        List<MainDTO.WeekBestSellerDTO> weekBestSeller = IntStream.range(0, getWeeklyBestSellers(today).size())
-                .mapToObj(i -> {
-                    Book book = getWeeklyBestSellers(today).get(i);
-                    return MainDTO.WeekBestSellerDTO.builder()
-                            .id(book.getId())
-                            .bookImagePath(book.getPath())
-                            .bookTitle(book.getTitle())
-                            .author(book.getAuthor().getName())
-                            .rankNum(i + 1) // 순위 추가
-                            .build();
-                })
-                .collect(Collectors.toList());
+        LocalDateTime startOfWeek = today.with(DayOfWeek.MONDAY).atStartOfDay();
+        LocalDateTime endOfWeek = today.with(DayOfWeek.SUNDAY).atTime(LocalTime.MAX);
 
-        //4, 일간 베스트 셀러 정보 DTO 매핑
-        Book book = getDailyBestSellers(today);
-        MainDTO.DayBestSellerDTO dayBestSeller = MainDTO.DayBestSellerDTO.builder()
-                .id(book.getId())
-                .bookTitle(book.getTitle())
-                .bookImagePath(book.getPath())
-                .bookIntro(book.getBookIntro())
-                .author(book.getAuthor().getName())
-                .build();
+        List<WeekBestSellerProjection> weeklyRaw = bookRepository.findWeekBestSellersNative(startOfWeek, endOfWeek);
+        List<MainDTO.WeekBestSellerDTO> weekBestSeller = IntStream.range(0, weeklyRaw.size())
+            .mapToObj(i -> {
+                WeekBestSellerProjection p = weeklyRaw.get(i);
+                return new MainDTO.WeekBestSellerDTO(
+                    p.getId(),
+                    p.getBookImagePath(),
+                    p.getBookTitle(),
+                    p.getAuthor(),
+                    i + 1 // rankNum
+                );
+            })
+            .collect(Collectors.toList());
+
+
+        // 4. 일간 베스트 셀러 정보 DTO 매핑
+        LocalDateTime startOfDay = today.atStartOfDay();
+        LocalDateTime endOfDay = today.atTime(LocalTime.MAX);
+
+        DayBestSellerProjection p = bookRepository.findDayBestSellerNative(startOfDay, endOfDay);
+        MainDTO.DayBestSellerDTO dayBestSeller = new MainDTO.DayBestSellerDTO(
+            p.getId(),
+            p.getBookTitle(),
+            p.getAuthor(),
+            p.getBookIntro(),
+            p.getBookImagePath()
+        );
+
 
 
         return MainDTO.builder()
@@ -149,24 +172,24 @@ public class UserService {
                 .build();
     }
 
-    //주간 베스트 셀러 날짜 구하는 메서드
-    public List<Book> getWeeklyBestSellers(LocalDate date) {
-        LocalDateTime startOfWeek = date.with(DayOfWeek.MONDAY).atStartOfDay();
-        LocalDateTime endOfWeek = date.with(DayOfWeek.SUNDAY).atTime(LocalTime.MAX);
+//     //주간 베스트 셀러 날짜 구하는 메서드
+//     public List<Book> getWeeklyBestSellers(LocalDate date) {
+//         LocalDateTime startOfWeek = date.with(DayOfWeek.MONDAY).atStartOfDay();
+//         LocalDateTime endOfWeek = date.with(DayOfWeek.SUNDAY).atTime(LocalTime.MAX);
 
-        System.out.println(startOfWeek + " 찾아라 " + endOfWeek);
-        return bookRepository.findWeekBestSellers(startOfWeek, endOfWeek);
-    }
+//         System.out.println(startOfWeek + " 찾아라 " + endOfWeek);
+//         return bookRepository.findWeekBestSellers(startOfWeek, endOfWeek);
+//     }
 
 
-    //일별 베스트셀러 날짜 구하는 메서드
-    public Book getDailyBestSellers(LocalDate date) {
-        LocalDateTime startOfDay = date.atStartOfDay(); // 하루의 시작 시간
-        LocalDateTime endOfDay = date.atTime(LocalTime.MAX); // 하루의 끝 시간
-        Pageable pageable = PageRequest.of(0, 1);
-        Page<Book> page = bookRepository.findTopDayBestSeller(startOfDay, endOfDay, pageable);
-        return page.getContent().get(0);
-    }
+//     //일별 베스트셀러 날짜 구하는 메서드
+//     public Book getDailyBestSellers(LocalDate date) {
+//         LocalDateTime startOfDay = date.atStartOfDay(); // 하루의 시작 시간
+//         LocalDateTime endOfDay = date.atTime(LocalTime.MAX); // 하루의 끝 시간
+//         Pageable pageable = PageRequest.of(0, 1);
+//         Page<Book> page = bookRepository.findTopDayBestSeller(startOfDay, endOfDay, pageable);
+//         return page.getContent().get(0);
+//     }
 
     //네이버 오어스
     @Transactional
@@ -268,15 +291,20 @@ public class UserService {
     //내 서재 페이지
     public MyLibraryResponseDTO myLibrary(SessionUser sessionUser) {
         //1. 이어보기 정보 DTO 매핑
-        List<MyLibraryResponseDTO.BookListDTO.HistoryDTO> bookHistories = bookHistoryRepository.findBookHistoryByUserId(sessionUser.getId()).stream().map(
-                bookHistory -> MyLibraryResponseDTO.BookListDTO.HistoryDTO.builder()
-                        .id(bookHistory.getBook().getId())
-                        .imagePath(bookHistory.getBook().getPath())
-                        .bookTitle(bookHistory.getBook().getTitle())
-                        .pageCount(bookHistory.getBook().getPageCount())
-                        .lastReadPage(bookHistory.getLastReadPage())
-                        .build()).collect(Collectors.toList());
+        List<MyLibraryResponseDTO.BookListDTO.HistoryDTO> libraryBookHistories =
+        bookHistoryRepository.findContinueReadingBooks(sessionUser.getId())
+            .stream()
+            .map(p -> new MyLibraryResponseDTO.BookListDTO.HistoryDTO(
+                p.getBookId(),
+                p.getBookImagePath(),
+                p.getBookTitle(),
+                p.getPageCount(),
+                p.getLastReadPage()
+            ))
+            .collect(Collectors.toList());
 
+
+                       
         //2. 전체 도서 DTO 매핑
         List<MyLibraryResponseDTO.BookListDTO.AllBookDTO> allBook = bookHistoryRepository.findBookListByUserId(sessionUser.getId()).stream().map(
                 bookHistory -> MyLibraryResponseDTO.BookListDTO.AllBookDTO.builder()
@@ -289,7 +317,7 @@ public class UserService {
         //3. 책 목록 DTO 매핑
         List<MyLibraryResponseDTO.BookListDTO> bookList = new ArrayList<>();
         bookList.add(MyLibraryResponseDTO.BookListDTO.builder()
-                .historyList(bookHistories)
+                .historyList(libraryBookHistories)
                 .allBook(allBook)
                 .build());
 

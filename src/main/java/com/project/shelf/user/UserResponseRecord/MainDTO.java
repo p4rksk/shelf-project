@@ -19,6 +19,7 @@ public record MainDTO(
             String bookImagePath,
             String bookTitle,
             String author,
+            Long readCount,
             Integer rankNum
     ) {
     }

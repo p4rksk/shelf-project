@@ -9,6 +9,11 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import com.project.shelf.book.projection.BestSellerProjection;
+import com.project.shelf.book.projection.DayBestSellerProjection;
+import com.project.shelf.book.projection.WeekBestSellerProjection;
+import com.project.shelf.user.UserResponse.MainDTO.BestSellerDTO;
+
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
@@ -22,18 +27,60 @@ public interface BookRepository extends JpaRepository<Book, Integer> {
     List<Book> findByRegistrationMonth(@Param("startDate") LocalDate startDate, @Param("endDate") LocalDate endDate);
 
     // 베스트셀러 구하는 쿼리
-    @Query("SELECT b,a FROM BookHistory bh JOIN bh.book b join bh.book.author a GROUP BY b.id ORDER BY COUNT(bh.id) DESC")
-    List<Book> findBooksByHistory();
+    @Query(value = """
+        SELECT 
+            b.id AS id,
+            b.path AS bookImagePath,
+            b.title AS bookTitle,
+            a.name AS author,
+            COUNT(bh.id) AS readCount
+        FROM book_history_tb bh
+        JOIN book_tb b ON bh.book_id = b.id
+        JOIN author_tb a ON b.author_id = a.id
+        GROUP BY b.id, b.path, b.title, a.name
+        ORDER BY readCount DESC
+    """, nativeQuery = true)
+    List<BestSellerProjection> findBestSellers();
+    
+
+    
 
     // 주간 베스트 셀러 구하는 쿼리
-    @Query("SELECT b,a FROM BookHistory bh JOIN bh.book b join bh.book.author a WHERE bh.createdAt >= :startOfWeek AND bh.createdAt <= :endOfWeek GROUP BY b.id ORDER BY COUNT(bh.id) DESC")
-    List<Book> findWeekBestSellers(@Param("startOfWeek") LocalDateTime startOfWeek, @Param("endOfWeek") LocalDateTime endOfWeek);
+    @Query(value = """
+        SELECT 
+            b.id AS id,
+            b.path AS bookImagePath,
+            b.title AS bookTitle,
+            a.name AS author,
+            COUNT(bh.id) AS readCount
+        FROM book_history_tb bh
+        JOIN book_tb b ON bh.book_id = b.id
+        JOIN author_tb a ON b.author_id = a.id
+        WHERE bh.created_at BETWEEN :startOfWeek AND :endOfWeek
+        GROUP BY b.id, b.path, b.title, a.name
+        ORDER BY readCount DESC
+        """, nativeQuery = true)
+    List<WeekBestSellerProjection> findWeekBestSellersNative(@Param("startOfWeek") LocalDateTime startOfWeek, @Param("endOfWeek") LocalDateTime endOfWeek);
+    
 
     // 일별 베스트 셀러 구하는 쿼리
-    @Query("SELECT b FROM BookHistory bh JOIN bh.book b JOIN fetch bh.book.author a WHERE bh.createdAt >= :startOfDay AND bh.createdAt <= :endOfDay GROUP BY b.id ORDER BY COUNT(bh.id) DESC")
-    Page<Book> findTopDayBestSeller(@Param("startOfDay") LocalDateTime startOfDay,
-                                    @Param("endOfDay") LocalDateTime endOfDay,
-                                    Pageable pageable);
+    @Query(value = """
+        SELECT 
+            b.id AS id,
+            b.title AS bookTitle,
+            a.name AS author,
+            b.book_intro AS bookIntro,
+            b.path AS bookImagePath
+        FROM book_history_tb bh
+        JOIN book_tb b ON bh.book_id = b.id
+        JOIN author_tb a ON b.author_id = a.id
+        WHERE bh.created_at BETWEEN :startOfDay AND :endOfDay
+        GROUP BY b.id, b.title, a.name, b.book_intro, b.path
+        ORDER BY COUNT(bh.id) DESC
+        LIMIT 1
+    """, nativeQuery = true)
+    DayBestSellerProjection findDayBestSellerNative(@Param("startOfDay") LocalDateTime startOfDay,
+                                                    @Param("endOfDay") LocalDateTime endOfDay);
 
     @Query("SELECT b FROM Book b JOIN FETCH b.author a WHERE a.id = :authorId")
     List<Book> findByAuthorId(@Param("authorId") Integer authorId);

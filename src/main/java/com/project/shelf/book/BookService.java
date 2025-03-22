@@ -10,9 +10,11 @@ import com.project.shelf.author.AuthorRepository;
 import com.project.shelf.book.BookResponseRecord.BookCategorySearchDTO;
 import com.project.shelf.book.BookResponseRecord.BrandNewRespDTO;
 import com.project.shelf.book.BookResponseRecord.RankResponseDTO;
+import com.project.shelf.book.projection.BestSellerProjection;
 import com.project.shelf.user.SessionUser;
 import com.project.shelf.user.User;
 import com.project.shelf.user.UserRepository;
+import com.project.shelf.user.UserResponseRecord.MainDTO;
 import com.project.shelf.wishlist.WishlistRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -209,16 +211,20 @@ public class BookService {
     //랭크
     public RankResponseDTO getRank(String category) {
             // 1. 베스트 셀러 정보 DTO 매핑
-            List<RankResponseDTO.TotalBestSellerDTO> bestSellers = IntStream.range(0, bookRepository.findBooksByHistory().size())
-                    .mapToObj(i -> {
-                        Book book = bookRepository.findBooksByHistory().get(i);
-                        return RankResponseDTO.TotalBestSellerDTO.builder()
-                                .id(book.getId())
-                                .bookImagePath(book.getPath())
-                                .bookTitle(book.getTitle())
-                                .author(book.getAuthor().getName())
-                                .rankNum(i + 1) // 순위 추가
-                                .build();
+           List<BestSellerProjection> rawList = bookRepository.findBestSellers();
+            
+            List<RankResponseDTO.TotalBestSellerDTO> bestSellers = IntStream.range(0, rawList.size())
+            .mapToObj(i -> {
+                BestSellerProjection projection  = rawList.get(i);
+                return new RankResponseDTO.TotalBestSellerDTO(
+                 projection.getId(),
+                 projection.getBookImagePath(),
+                 projection.getBookTitle(),
+                 projection.getAuthor(),
+                 projection.getReadCount(),
+                 i+1
+                        );
+                              
                     })
                     .collect(Collectors.toList());
 
