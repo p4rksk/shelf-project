@@ -107,7 +107,7 @@ I am
 
 <br>
 
-# 👉 Flutter Dependencies
+# 👉 Server Dependencies
 ```java
 dependencies {
     implementation group: 'com.auth0', name: 'java-jwt', version: '4.3.0'
